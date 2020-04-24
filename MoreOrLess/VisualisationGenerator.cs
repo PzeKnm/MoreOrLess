@@ -68,7 +68,7 @@ namespace MoreOrLess
         string sTestFile = _path + _cTestFile;
         if(File.Exists(sTestFile))
           File.Delete(sTestFile);
-        File.WriteAllText(sTestFile, "Test");  
+        File.WriteAllText(sTestFile, "Test file");  
       }
       catch(Exception exc)
       {
