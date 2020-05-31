@@ -79,12 +79,13 @@ namespace MoreOrLess
 
 
 
-    public void UpdateVisualisation(GameManagerState GameState, 
+    public void UpdateVisualisation(byte envStatus, GameManagerState GameState, 
       MoreOrLess.InternalState internalState, int accessCode, Question _currentQuestion, 
       AnswerParameters _currentAnswer, int nScore, 
       int nTotalGameSecs, int nRemainingSecs, int nRemainingQuestionSecs)
     {
       VisualisationData vd = new VisualisationData();
+      vd.EnvironmentStatus = envStatus;
       vd.GameState = GameState.ToString();
       vd.GameStateInt = (int)GameState;
       vd.InternalState = internalState.ToString();

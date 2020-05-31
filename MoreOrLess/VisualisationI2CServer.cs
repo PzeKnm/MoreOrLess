@@ -7,7 +7,7 @@ namespace MoreOrLess
 {
 
   public struct SVizData {
-
+    public int EnvironmentStatus;
     public int GameState;
     public int InternalState;
     public int PotentialScore;
@@ -47,7 +47,8 @@ namespace MoreOrLess
 
       // todo, maybe read these from a config file...
       m_PotentialSlaves.Add(new I2CSlaveData(0x2b, "Potential Score Marker"));
-      m_PotentialSlaves.Add(new I2CSlaveData(0x2d, "Soemthing else"));
+      m_PotentialSlaves.Add(new I2CSlaveData(0x2d, "RobotPig"));
+      m_PotentialSlaves.Add(new I2CSlaveData(0x2e, "Engaged Sign"));
 
       CheckBus();
     }
@@ -55,6 +56,7 @@ namespace MoreOrLess
     public void PublishVisualisationData(VisualisationData vd)
     {      
       SVizData data;
+      data.EnvironmentStatus = vd.EnvironmentStatus;
       data.GameState = vd.GameStateInt;
       data.InternalState = vd.InternalStateInt;
       data.PotentialScore = vd.PotentialScore;
@@ -81,6 +83,7 @@ namespace MoreOrLess
     private void CheckBus()
     {
       SVizData data;
+      data.EnvironmentStatus = 0;
       data.GameState = 0;
       data.InternalState = 0;
       data.PotentialScore = 0;
@@ -88,7 +91,9 @@ namespace MoreOrLess
       data.TotalGameSecs = 0;
       data.RemainingSecs = 0;
       data.RemainingQuestionSecs = 0;
-
+      Console.WriteLine("======================================================================");
+      Console.WriteLine("I2C Bus report");
+      Console.WriteLine("--------------");
       foreach(I2CSlaveData slave in m_PotentialSlaves)
       {
         var i2cDevice = I2cDevice.Create(new I2cConnectionSettings(busId: 1, deviceAddress: slave.m_Address));
@@ -105,7 +110,9 @@ namespace MoreOrLess
         }
 
         sm.Dispose();
-      }			
+      }		
+      
+      Console.WriteLine("======================================================================");
     }
   }
 
@@ -155,16 +162,17 @@ namespace MoreOrLess
 
     public void SendVisualisationData(SVizData data)
     {
-      int size = 7;
+      int size = 8;
       var arr = new byte[size];
       
-      arr[0] = (byte)data.GameState;
-      arr[1] = (byte)data.InternalState;
-      arr[2] = (byte)data.PotentialScore;
-      arr[3] = (byte)data.Score;
-      arr[4] = (byte)data.TotalGameSecs;
-      arr[5] = (byte)data.RemainingSecs;
-      arr[6] = (byte)data.RemainingQuestionSecs;
+      arr[0] = (byte)data.EnvironmentStatus;      
+      arr[1] = (byte)data.GameState;
+      arr[2] = (byte)data.InternalState;
+      arr[3] = (byte)data.PotentialScore;
+      arr[4] = (byte)data.Score;
+      arr[5] = (byte)data.TotalGameSecs;
+      arr[6] = (byte)data.RemainingSecs;
+      arr[7] = (byte)data.RemainingQuestionSecs;
            
       ReadOnlySpan<byte> bytes = arr; // Implicit cast from T[] to Span<T>
       _device.Write(bytes);

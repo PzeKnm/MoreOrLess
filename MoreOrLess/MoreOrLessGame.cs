@@ -364,7 +364,7 @@ namespace MoreOrLess
       if(/*_dogAcceptAnswerTimeout != null*/GetInternalState() == InternalState.DisplayQuestion)
         nRemainingQuestionTime = _dogAcceptAnswerTimeout.GetRemainingTimeSec();
 
-      _visGenerator.UpdateVisualisation(GetGameMangerState(), GetInternalState(), GetAccessCode(),
+      _visGenerator.UpdateVisualisation(GetEnvironmentStatus(), GetGameMangerState(), GetInternalState(), GetAccessCode(),
         _currentQuestion, _currentAnswer, GetScore(), 
         _cGameLengthSecs, nRemainingTime, nRemainingQuestionTime);
 
@@ -379,6 +379,29 @@ namespace MoreOrLess
         _pi.PulsePin(GPIOPinDriver.Pin.GPIO17, nPulseMs);
       else
         _pi.PulsePin(GPIOPinDriver.Pin.GPIO27, nPulseMs);
+    }
+
+    private byte GetEnvironmentStatus()
+    {
+      if(_pi == null)
+        return 0;
+
+      int nDemo = _pi.ReadPin(GPIOPinDriver.Pin.GPIO22);
+
+      bool bDay = false;
+      bool bMovement = true;
+
+      byte btStatus = 0;
+      if(nDemo == 1)
+        btStatus += 0b00000001;
+
+      if(bDay)
+        btStatus += 0b00001000;
+
+      if(bMovement)
+        btStatus += 0b00010000;
+
+      return btStatus;
     }
   }
 

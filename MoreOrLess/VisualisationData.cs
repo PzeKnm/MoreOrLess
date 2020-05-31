@@ -13,6 +13,9 @@ namespace MoreOrLess
   public class VisualisationData
   {
     [DataMember]
+    public byte EnvironmentStatus;
+
+    [DataMember]
     public string GameState;
 
     [DataMember]
