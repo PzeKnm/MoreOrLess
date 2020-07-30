@@ -12,6 +12,8 @@ namespace MoreOrLess
   public class MoreOrLess: Game
   {
 
+    string _cVersion = "2.0";
+
     // Constants
     int _cGameLengthSecs = 60;
     int _cAuthenticationtimeoutSecs = 30;
@@ -49,12 +51,14 @@ namespace MoreOrLess
 
     RaspPi _pi;
 
+    DateTime _lastMotionDetected;
 
+    DateTime _demoStarted;
 
 
     public MoreOrLess(GameManager mgr) : base(mgr)
     {
-      Console.WriteLine("Program 'MoreOrLess' begins.");
+      Console.WriteLine("Program 'MoreOrLess' begins. Version: " + _cVersion);
       _visGenerator = new VisualisationGenerator();
 
       SetHubDeviceDetails("Station002", "rgvlStnhl3c7vPMeFI9OEK5TnQGL/0WNPBgZji/Hiro=");
@@ -78,8 +82,12 @@ namespace MoreOrLess
       _dogAuthenticationCountdownUpdate.WatchdogBites += _dogAuthenticationCountdown_WatchdogBites;
       _dogAuthenticationCountdownUpdate.Stop();
 
+      _lastMotionDetected = DateTime.Now;
+
       SetInternalState(InternalState.Ready);
     }
+
+
 
     private void SetInternalState(InternalState newState)
     {
@@ -148,7 +156,14 @@ namespace MoreOrLess
       #endif 
       
       _pi = new RaspPi(bSim);
-      _pi.Initialise();
+
+      List<RaspPin> lstPins = new List<RaspPin>();
+      lstPins.Add(new RaspPin { name = "MotionSensor", pinNumber = GPIOPinDriver.Pin.GPIO22, direction = GPIOPinDriver.GPIODirection.In});
+      lstPins.Add(new RaspPin { name = "LightSensor", pinNumber = GPIOPinDriver.Pin.GPIO10, direction = GPIOPinDriver.GPIODirection.In});
+      lstPins.Add(new RaspPin { name = "CorrectAnswer", pinNumber = GPIOPinDriver.Pin.GPIO17, direction = GPIOPinDriver.GPIODirection.Out});
+      lstPins.Add(new RaspPin { name = "IncorrectAnswer", pinNumber = GPIOPinDriver.Pin.GPIO27, direction = GPIOPinDriver.GPIODirection.Out});
+
+      _pi.InitialiseFromPinArray(lstPins);
 
       GetRestApi().ShowPerformance(false);
     }
@@ -156,6 +171,22 @@ namespace MoreOrLess
     public override void Deinitialise()
     {
       _pi.Deinitialise();
+    }
+
+    private bool IsMotionDetected()
+    {
+      if(_pi.ReadPin("MotionSensor") == 1)
+      {
+        _lastMotionDetected = DateTime.Now;
+        return true;
+      }
+      
+      return false;
+    }
+
+    private bool IsLightDetected()
+    {
+      return (_pi.ReadPin("LightSensor") == 1);
     }
 
     public override string GetGameCommands()
@@ -206,8 +237,50 @@ namespace MoreOrLess
       }
             
       return false;
-    }   
-    
+    }
+
+    // Called when there hasn't been any user activity for a while. Cuurent mode might be Ready, Demo, or Dormant
+    public override GameManagerState GetGameManagerStateFromIdle() 
+    {
+      int nSecsGameInactive = GetTimeWithoutGameActivitySecs();
+      bool bMotionDetected = IsMotionDetected();
+
+      if(GetGameMangerState() == GameManagerState.Online_Ready)
+      {
+        TimeSpan ts = DateTime.Now - _lastMotionDetected;
+        if(ts.TotalMinutes > 20.0)
+        {
+          return GameManagerState.Online_Dormant;
+        }
+
+        if(nSecsGameInactive > (60 * 10))
+        {
+          _demoStarted = DateTime.Now;
+          return GameManagerState.Online_Demo;
+        }
+      }
+      
+      if (GetGameMangerState() == GameManagerState.Online_Dormant)
+      {
+        if(bMotionDetected)
+        {
+          return GameManagerState.Online_Ready;
+        }
+      }
+
+      if (GetGameMangerState() == GameManagerState.Online_Demo)
+      {
+        TimeSpan ts = DateTime.Now - _demoStarted;
+
+        if (ts.TotalMinutes > 5.0)
+        {
+          return GameManagerState.Online_Ready;
+        }       
+      }
+
+      return GetGameMangerState(); 
+    }
+
 
     public override void GameStateHasChanged() 
     { 
@@ -373,27 +446,25 @@ namespace MoreOrLess
     }
 
     private void PerformPiAnswer(bool bCorrect)
-    {
+    {      
       int nPulseMs = 1000 * _cShowAnswerSecs;
       if(bCorrect)
-        _pi.PulsePin(GPIOPinDriver.Pin.GPIO17, nPulseMs);
+        _pi.PulsePin("CorrectAnswer", nPulseMs);
       else
-        _pi.PulsePin(GPIOPinDriver.Pin.GPIO27, nPulseMs);
+        _pi.PulsePin("IncorrectAnswer", nPulseMs);      
     }
 
     private byte GetEnvironmentStatus()
     {
       if(_pi == null)
         return 0;
-
-      int nDemo = _pi.ReadPin(GPIOPinDriver.Pin.GPIO22);
-
-      bool bDay = false;
-      bool bMovement = true;
-
+           
+      bool bDay = (_pi.ReadPin("LightSensor") == 1);
+      bool bMovement = (_pi.ReadPin("MotionSensor") == 1);
+      bool bDormant = (GetGameMangerState() == GameManagerState.Online_Dormant);
+  
       byte btStatus = 0;
-      if(nDemo == 1)
-        btStatus += 0b00000001;
+      btStatus += GetDemoStatus(); 
 
       if(bDay)
         btStatus += 0b00001000;
@@ -401,9 +472,31 @@ namespace MoreOrLess
       if(bMovement)
         btStatus += 0b00010000;
 
+      if(bDormant)
+        btStatus += 0b10000000;
+
       return btStatus;
     }
+
+    private byte GetDemoStatus()
+    {
+      byte btStatus = 0;
+      if(GetGameMangerState() == GameManagerState.Online_Demo)
+        btStatus += 0b00000001;
+
+      // todo mkmkkm demo status could have 4 alternatives
+      // btStatus += 0b00000001;
+      // btStatus += 0b00000011;
+      // btStatus += 0b00000101;
+      // btStatus += 0b00000111;
+
+      return btStatus;
+    }
+
+
   }
+
+
 
 
 

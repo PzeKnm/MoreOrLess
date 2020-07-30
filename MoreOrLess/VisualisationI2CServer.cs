@@ -2,23 +2,30 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Device.I2c;
+using static MoreOrLess.I2CSlaveData;
 
 namespace MoreOrLess
 {
-
-  public struct SVizData {
-    public int EnvironmentStatus;
-    public int GameState;
-    public int InternalState;
-    public int PotentialScore;
-    public int Score;
-    public int TotalGameSecs;
-    public int RemainingSecs;
-    public int RemainingQuestionSecs;
-  };
-
+  
   public class I2CSlaveData
   {
+
+
+  // Since I2C is byte-based, we need to decide data types carefully.
+  // Total datagram length must be <= 32 bytes
+  public struct SI2CVizData {
+    public byte EnvironmentStatus;      //    1 byte
+    public byte GameState;              //    1 byte
+    public byte InternalState;          //    1 byte
+    public ushort PotentialScore;       //    2 bytes
+    public ushort Score;                //    2 bytes
+    public ushort TotalGameSecs;        //    2 bytes
+    public ushort RemainingSecs;        //    2 bytes
+    public byte RemainingQuestionSecs;  //    1 byte
+  };                                    // = 12 bytes
+
+  public static int SIZE_OF_VIZ_DATA_IN_BYTES =     12;
+
     public I2CSlaveData(byte addr, string name)
     {
       m_Address = addr;
@@ -54,16 +61,16 @@ namespace MoreOrLess
     }
          
     public void PublishVisualisationData(VisualisationData vd)
-    {      
-      SVizData data;
+    {
+      I2CSlaveData.SI2CVizData data;
       data.EnvironmentStatus = vd.EnvironmentStatus;
-      data.GameState = vd.GameStateInt;
-      data.InternalState = vd.InternalStateInt;
-      data.PotentialScore = vd.PotentialScore;
-      data.Score = vd.Score;
-      data.TotalGameSecs = vd.TotalGameSecs;
-      data.RemainingSecs = vd.RemainingSecs;
-      data.RemainingQuestionSecs = vd.RemainingQuestionSecs;
+      data.GameState = (byte)vd.GameStateInt;
+      data.InternalState = (byte)vd.InternalStateInt;
+      data.PotentialScore = (ushort)vd.PotentialScore;
+      data.Score = (ushort)vd.Score;
+      data.TotalGameSecs = (ushort)vd.TotalGameSecs;
+      data.RemainingSecs = (ushort)vd.RemainingSecs;
+      data.RemainingQuestionSecs = (byte)vd.RemainingQuestionSecs;
 
       // Broadcast to all the devices on the bus and send them all the good news.
       var i2cDevice = I2cDevice.Create(new I2cConnectionSettings(busId: 1, deviceAddress: m_cBroadcastAddr));
@@ -82,7 +89,7 @@ namespace MoreOrLess
 
     private void CheckBus()
     {
-      SVizData data;
+      SI2CVizData data;
       data.EnvironmentStatus = 0;
       data.GameState = 0;
       data.InternalState = 0;
@@ -94,7 +101,9 @@ namespace MoreOrLess
       Console.WriteLine("======================================================================");
       Console.WriteLine("I2C Bus report");
       Console.WriteLine("--------------");
-      foreach(I2CSlaveData slave in m_PotentialSlaves)
+      Console.WriteLine("Status Address Device");
+      Console.WriteLine("------ ------- ------");
+      foreach (I2CSlaveData slave in m_PotentialSlaves)
       {
         var i2cDevice = I2cDevice.Create(new I2cConnectionSettings(busId: 1, deviceAddress: slave.m_Address));
         var sm = new I2CSlaveDevice(i2cDevice);
@@ -102,11 +111,11 @@ namespace MoreOrLess
         {
           sm.SendVisualisationData(data);
           slave.m_bOnline = true;
-          Console.WriteLine("Device: " + slave.m_Name + " OK at address: " + slave.m_Address.ToString());
+          Console.WriteLine("OK       " + slave.m_Address.ToString() + "     " + slave.m_Name );
         }
         catch
         {
-          Console.WriteLine("Device: " + slave.m_Name + " not contactable at address: " + slave.m_Address.ToString());
+          Console.WriteLine("NOT OK!  " + slave.m_Address.ToString() + "     " + slave.m_Name);
         }
 
         sm.Dispose();
@@ -160,23 +169,34 @@ namespace MoreOrLess
     }
 
 
-    public void SendVisualisationData(SVizData data)
+    public void SendVisualisationData(SI2CVizData data)
     {
-      int size = 8;
-      var arr = new byte[size];
+      /*
+      ushort number = Convert.ToUInt16("3510");
+      byte upper = (byte) (number >> 8);
+      byte lower = (byte) (number & 0xff);
+       * */
+      var arr = new byte[SIZE_OF_VIZ_DATA_IN_BYTES];
       
+      // I2C is a byte-based protocol. We need to explicitely think whether we want to send
+      // ints as ints, or truncate them to bytes
       arr[0] = (byte)data.EnvironmentStatus;      
       arr[1] = (byte)data.GameState;
       arr[2] = (byte)data.InternalState;
-      arr[3] = (byte)data.PotentialScore;
-      arr[4] = (byte)data.Score;
-      arr[5] = (byte)data.TotalGameSecs;
-      arr[6] = (byte)data.RemainingSecs;
-      arr[7] = (byte)data.RemainingQuestionSecs;
-           
+      arr[3] = (byte)(data.PotentialScore >> 8);
+      arr[4] = (byte)(data.PotentialScore & 0xff);
+      arr[5] = (byte)(data.Score >> 8);
+      arr[6] = (byte)(data.Score & 0xff);
+      arr[7] = (byte)(data.TotalGameSecs >> 8);
+      arr[8] = (byte)(data.TotalGameSecs & 0xff); 
+      arr[9] = (byte)(data.RemainingSecs >> 8);
+      arr[10] = (byte)(data.RemainingSecs & 0xff);
+      arr[11] = (byte)data.RemainingQuestionSecs;
       ReadOnlySpan<byte> bytes = arr; // Implicit cast from T[] to Span<T>
       _device.Write(bytes);
     }
+
+   
 
 
 
