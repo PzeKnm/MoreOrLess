@@ -235,11 +235,17 @@ namespace MoreOrLess
         AcceptAnswer();
         return true;
       }
-            
+
+      if (k.Key == ConsoleKey.M)
+      {
+        ReBootPi();
+        return true;
+      }
+
       return false;
     }
 
-    // Called when there hasn't been any user activity for a while. Cuurent mode might be Ready, Demo, or Dormant
+    // Called when there hasn't been any user activity for a while. Current mode might be Ready, Demo, or Dormant
     public override GameManagerState GetGameManagerStateFromIdle() 
     {
       int nSecsGameInactive = GetTimeWithoutGameActivitySecs();
@@ -279,6 +285,22 @@ namespace MoreOrLess
       }
 
       return GetGameMangerState(); 
+    }
+
+
+    public override bool RebootMachine() 
+    {
+      ReBootPi();
+      return false; 
+    }
+
+    private void ReBootPi()
+    {
+      if (DeactivateGame())
+      {
+        Console.WriteLine("Game Deactivated");
+        _pi.Reboot();
+      }
     }
 
 
